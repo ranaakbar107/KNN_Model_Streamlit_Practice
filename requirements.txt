@@ -1,8 +1,2 @@
-fastapi
-uvicorn
-joblib
-scikit-learn
-numpy
-pandas
 streamlit
 requests
