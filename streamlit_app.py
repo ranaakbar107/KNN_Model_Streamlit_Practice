@@ -1,5 +1,9 @@
+import pathlib
+import tempfile
+
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 # ─────────────────────────────────────────────────────────────
 # 1. Page setup
@@ -20,7 +24,166 @@ def stretch_button(label: str) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────
-# 2. Custom CSS (theme inspired by the reference UI kit)
+# 2. Custom slider component (recessed track, gradient fill, round knob, ticks)
+# ─────────────────────────────────────────────────────────────
+SLIDER_HTML = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+:root{--blue:#4A63F5; --cyan:#00C2FF; color-scheme:light;}
+*{box-sizing:border-box;}
+html,body{margin:0; padding:0; background:#fff; overflow:hidden; font-family:'Poppins',system-ui,sans-serif;}
+.wrap{padding:0 6px 4px;}
+.label{font-size:13.6px; line-height:18px; font-weight:500; color:#5A6485; margin-bottom:4px;}
+.unit{color:#8A93B2; font-weight:400;}
+
+/* floating value bubble */
+.stage{position:relative; padding-top:34px;}
+.bubble{
+  position:absolute; top:2px; left:0; transform:translateX(-50%);
+  padding:4px 11px; border-radius:12px; background:#fff; color:#3A4FE0;
+  font-size:12.5px; line-height:16px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap;
+  box-shadow:0 4px 12px rgba(30,40,120,.18), 0 0 0 1px #E3E8FF; pointer-events:none;
+}
+.bubble::after{
+  content:""; position:absolute; left:var(--caret,50%); bottom:-4px; width:8px; height:8px; background:#fff;
+  transform:translateX(-50%) rotate(45deg); box-shadow:2px 2px 3px rgba(30,40,120,.10);
+}
+
+/* slider */
+.slider{position:relative; height:28px;}
+.groove{
+  position:absolute; left:0; right:0; top:7px; height:14px; border-radius:999px; overflow:hidden;
+  background:linear-gradient(180deg,#DDE2F3 0%,#EDF0FA 100%);
+  box-shadow:inset 0 2px 5px rgba(31,42,100,.28), 0 1px 0 rgba(255,255,255,.95);
+}
+.fill{
+  position:absolute; left:0; top:0; bottom:0; width:50%; border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 55%,rgba(20,30,120,.12) 100%),
+             linear-gradient(90deg,var(--cyan),var(--blue));
+  box-shadow:0 0 10px rgba(0,194,255,.45);
+}
+input[type=range]{
+  -webkit-appearance:none; appearance:none; position:absolute; left:0; top:0; width:100%; height:28px;
+  margin:0; background:transparent; cursor:pointer; outline:none;
+}
+input[type=range]::-webkit-slider-runnable-track{height:28px; background:transparent; border:none;}
+input[type=range]::-moz-range-track{height:28px; background:transparent; border:none;}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; box-sizing:border-box; width:28px; height:28px; border-radius:50%;
+  border:1px solid #CFD6EE; transition:transform .15s ease, box-shadow .15s ease;
+  background:radial-gradient(circle at center,#4A63F5 0,#4A63F5 4px,transparent 5px),
+             radial-gradient(circle at 35% 28%,#FFFFFF 0%,#F1F3FB 60%,#D5DBF0 100%);
+  box-shadow:0 4px 10px rgba(30,40,120,.35), inset 0 -2px 3px rgba(30,40,120,.10);
+}
+input[type=range]::-moz-range-thumb{
+  box-sizing:border-box; width:28px; height:28px; border-radius:50%; border:1px solid #CFD6EE;
+  background:radial-gradient(circle at center,#4A63F5 0,#4A63F5 4px,transparent 5px),
+             radial-gradient(circle at 35% 28%,#FFFFFF 0%,#F1F3FB 60%,#D5DBF0 100%);
+  box-shadow:0 4px 10px rgba(30,40,120,.35), inset 0 -2px 3px rgba(30,40,120,.10);
+}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.08);}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(.96);}
+input[type=range]:focus-visible::-webkit-slider-thumb{
+  box-shadow:0 0 0 4px rgba(74,99,245,.25), 0 4px 10px rgba(30,40,120,.35);}
+input[type=range]:focus-visible::-moz-range-thumb{
+  box-shadow:0 0 0 4px rgba(74,99,245,.25), 0 4px 10px rgba(30,40,120,.35);}
+
+/* ruler ticks + min / max */
+.ticks{
+  position:relative; height:10px; margin:4px 14px 0;
+  background:
+    repeating-linear-gradient(90deg,#9FA8CC 0,#9FA8CC 1.5px,transparent 1.5px,transparent 25%) 0 0/100% 10px no-repeat,
+    repeating-linear-gradient(90deg,#CBD1E8 0,#CBD1E8 1px,transparent 1px,transparent 5%) 0 0/100% 5px no-repeat;
+}
+.ticks::after{content:""; position:absolute; right:0; top:0; width:1.5px; height:10px; background:#9FA8CC;}
+.minmax{
+  display:flex; justify-content:space-between; margin:4px 6px 0; font-size:11px; line-height:14px;
+  color:#8E93AB; font-variant-numeric:tabular-nums;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="label"><span id="lt"></span><span class="unit" id="un"></span></div>
+  <div class="stage" id="stage">
+    <div class="bubble" id="bubble">0</div>
+    <div class="slider">
+      <div class="groove"><div class="fill" id="fill"></div></div>
+      <input type="range" id="r" min="0" max="100" step="1" value="50">
+    </div>
+  </div>
+  <div class="ticks"></div>
+  <div class="minmax"><span id="mn"></span><span id="mx"></span></div>
+</div>
+<script>
+(function () {
+  var HEIGHT = 120;
+  var send = function (type, data) {
+    window.parent.postMessage(Object.assign({isStreamlitMessage: true, type: type}, data || {}), "*");
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var input = $("r"), fill = $("fill"), bubble = $("bubble"), stage = $("stage");
+  var decimals = 0, built = false;
+  var fmt = function (v) { return Number(v).toFixed(decimals); };
+
+  function paint() {
+    var min = +input.min, max = +input.max, v = +input.value;
+    var p = max > min ? (v - min) / (max - min) : 0;
+    fill.style.width = "calc(14px + (100% - 28px) * " + p + ")";
+    bubble.textContent = fmt(v);
+    var W = stage.clientWidth, center = 14 + p * (W - 28), half = bubble.offsetWidth / 2;
+    var left = Math.min(Math.max(center, half), W - half);
+    bubble.style.left = left + "px";
+    var caret = Math.min(Math.max(center - left + half, 10), bubble.offsetWidth - 10);
+    bubble.style.setProperty("--caret", caret + "px");
+  }
+
+  window.addEventListener("message", function (e) {
+    if (!e.data || e.data.type !== "streamlit:render" || built) return;
+    built = true;
+    var a = e.data.args;
+    decimals = a.decimals;
+    $("lt").textContent = a.label;
+    $("un").textContent = a.unit ? " (" + a.unit + ")" : "";
+    input.min = a.min; input.max = a.max; input.step = a.step; input.value = a.value;
+    $("mn").textContent = fmt(a.min);
+    $("mx").textContent = fmt(a.max);
+    paint();
+    send("streamlit:setFrameHeight", {height: HEIGHT});
+  });
+
+  input.addEventListener("input", paint);
+  input.addEventListener("change", function () {
+    send("streamlit:setComponentValue", {value: +input.value, dataType: "json"});
+  });
+  window.addEventListener("resize", paint);
+  send("streamlit:componentReady", {apiVersion: 1});
+})();
+</script>
+</body>
+</html>
+"""
+
+_COMP_DIR = pathlib.Path(tempfile.gettempdir()) / "diabetes_fancy_slider"
+_COMP_DIR.mkdir(exist_ok=True)
+(_COMP_DIR / "index.html").write_text(SLIDER_HTML, encoding="utf-8")
+_fancy_slider = components.declare_component("fancy_slider", path=str(_COMP_DIR))
+
+
+def fancy_slider(label, min_value, max_value, value, step, unit="", decimals=0, key=None):
+    """Custom styled slider. Returns the selected number (updates when the knob is released)."""
+    return _fancy_slider(
+        label=label, min=min_value, max=max_value, value=value, step=step,
+        unit=unit, decimals=decimals, key=key, default=value,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# 3. Page CSS (theme inspired by the reference UI kit)
 # ─────────────────────────────────────────────────────────────
 CUSTOM_CSS = """
 <style>
@@ -76,7 +239,7 @@ section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3{color:v
 .card-title .dot{width:10px; height:10px; border-radius:50%; background:linear-gradient(135deg,var(--cyan),var(--primary));}
 .card-sub{color:var(--muted); font-size:.85rem; margin:.2rem 0 .4rem;}
 
-/* ---------- Inputs ---------- */
+/* ---------- Number inputs ---------- */
 [data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] label{
   color:#5A6485 !important; font-weight:500; font-size:.85rem;}
 div[data-baseweb="input"], div[data-baseweb="base-input"]{background:var(--soft) !important; border-radius:14px !important;}
@@ -84,17 +247,6 @@ div[data-baseweb="input"]{border:1px solid var(--line) !important;}
 div[data-baseweb="input"]:focus-within{border-color:var(--primary) !important; box-shadow:0 0 0 3px rgba(74,99,245,.15);}
 div[data-baseweb="input"] input{color:var(--ink) !important; -webkit-text-fill-color:var(--ink) !important; font-weight:500;}
 [data-testid="stNumberInput"] button{background:transparent !important; color:var(--primary) !important; border:none !important;}
-
-/* ---------- Sliders ----------
-   Streamlit's default slider accent is red (#FF4B4B). Hue-rotating the whole slider widget
-   turns it into the theme blue; the label is rotated back so its colour stays unchanged. */
-[data-testid="stSlider"]{filter:hue-rotate(240deg); padding-bottom:1.5rem;}
-[data-testid="stSlider"] [data-testid="stWidgetLabel"]{filter:hue-rotate(-240deg);}
-[data-testid="stSlider"] [role="slider"]{
-  box-shadow:0 0 0 5px rgba(255,75,75,.18), 0 4px 10px rgba(255,75,75,.35) !important;}
-[data-testid*="TickBar"], [data-testid*="TickBar"] *{
-  color:#8E8E93 !important; opacity:1 !important; font-size:.72rem !important;}
-[data-testid*="ThumbValue"]{font-weight:600 !important; font-size:.82rem !important;}
 
 /* ---------- Live snapshot tiles ---------- */
 .soft-divider{height:1px; background:var(--line); margin:1.4rem 0 1rem;}
@@ -150,7 +302,7 @@ div[data-baseweb="input"] input{color:var(--ink) !important; -webkit-text-fill-c
 html(CUSTOM_CSS)
 
 # ─────────────────────────────────────────────────────────────
-# 3. Hero header
+# 4. Hero header
 # ─────────────────────────────────────────────────────────────
 html("""
 <div class="hero">
@@ -162,34 +314,34 @@ html("""
 """)
 
 # ─────────────────────────────────────────────────────────────
-# 4. Sidebar – API configuration
+# 5. Sidebar – API configuration
 # ─────────────────────────────────────────────────────────────
 st.sidebar.header("API Configuration")
 API_URL = st.sidebar.text_input("FastAPI URL:", value="https://affidavit-whiny-carwash.ngrok-free.dev").rstrip("/")
 st.sidebar.caption("Public URL of your running FastAPI server (e.g. your ngrok link).")
 
 # ─────────────────────────────────────────────────────────────
-# 5. Input card
+# 6. Input card
 # ─────────────────────────────────────────────────────────────
 with st.container(key="input_card"):
     html("""
     <div class="card-title"><span class="dot"></span>Patient Details</div>
-    <div class="card-sub">Adjust the values below. The snapshot updates live.</div>
+    <div class="card-sub">Adjust the values below. The snapshot updates when you release a slider.</div>
     """)
 
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
         pregnancies = st.number_input("Pregnancies", min_value=0, max_value=17, value=2, step=1)
-        glucose = st.slider("Glucose (mg/dL)", min_value=0.0, max_value=200.0, value=120.0, step=1.0, format="%.0f")
-        blood_pressure = st.slider("Blood Pressure (mm Hg)", min_value=0.0, max_value=130.0, value=70.0, step=1.0, format="%.0f")
-        skin_thickness = st.slider("Skin Thickness (mm)", min_value=0.0, max_value=100.0, value=20.0, step=1.0, format="%.0f")
+        glucose = fancy_slider("Glucose", 0, 200, 120, 1, unit="mg/dL", key="glucose")
+        blood_pressure = fancy_slider("Blood Pressure", 0, 130, 70, 1, unit="mm Hg", key="bp")
+        skin_thickness = fancy_slider("Skin Thickness", 0, 100, 20, 1, unit="mm", key="skin")
 
     with col2:
         dpf = st.number_input("Diabetes Pedigree Function", min_value=0.0, max_value=2.5, value=0.5, step=0.01)
-        insulin = st.slider("Insulin (µU/mL)", min_value=0.0, max_value=850.0, value=80.0, step=1.0, format="%.0f")
-        bmi = st.slider("BMI (kg/m²)", min_value=0.0, max_value=70.0, value=25.0, step=0.1, format="%.1f")
-        age = st.slider("Age (years)", min_value=18, max_value=90, value=30, step=1)
+        insulin = fancy_slider("Insulin", 0, 850, 80, 1, unit="µU/mL", key="insulin")
+        bmi = fancy_slider("BMI", 0, 70, 25.0, 0.1, unit="kg/m²", decimals=1, key="bmi")
+        age = fancy_slider("Age", 18, 90, 30, 1, unit="years", key="age")
 
     html('<div class="soft-divider"></div>')
 
@@ -197,7 +349,7 @@ with st.container(key="input_card"):
         ("Glucose", f"{glucose:.0f}", "mg/dL"),
         ("Blood Pressure", f"{blood_pressure:.0f}", "mm Hg"),
         ("BMI", f"{bmi:.1f}", "kg/m²"),
-        ("Age", f"{age}", "yrs"),
+        ("Age", f"{int(age)}", "yrs"),
     ]
     tiles_html = "".join(
         f'<div class="snap-tile"><div class="snap-label">{n}</div>'
@@ -210,7 +362,7 @@ with st.container(key="input_card"):
 
 
 # ─────────────────────────────────────────────────────────────
-# 6. Result + alert helpers
+# 7. Result + alert helpers
 # ─────────────────────────────────────────────────────────────
 def show_result(label: str, confidence: float):
     confidence = max(0.0, min(1.0, confidence))
@@ -249,7 +401,7 @@ def show_alert(message: str):
 
 
 # ─────────────────────────────────────────────────────────────
-# 7. Predict → API call
+# 8. Predict → API call
 # ─────────────────────────────────────────────────────────────
 if clicked:
     # Exact field names from PatientFeatures model in main.py
@@ -285,7 +437,7 @@ if clicked:
                    "(<code>uvicorn main:app --reload</code>).")
 
 # ─────────────────────────────────────────────────────────────
-# 8. Footer
+# 9. Footer
 # ─────────────────────────────────────────────────────────────
 html("""
 <div class="disclaimer">
