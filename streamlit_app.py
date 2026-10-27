@@ -8,7 +8,7 @@ st.write("Enter the patient's medical details below to check the diabetes risk."
 
 # streamlit_app.py mein API_URL wali line ki jagah ye likhein:
 st.sidebar.header("API Configuration")
-API_URL = "https://affidavit-whiny-carwash.ngrok-free.dev"
+API_URL = st.sidebar.text_input("FastAPI URL:", value="https://affidavit-whiny-carwash.ngrok-free.dev").rstrip("/")
 
 # 2. Eight input widgets laid out in two columns
 col1, col2 = st.columns(2)
