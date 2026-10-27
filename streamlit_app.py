@@ -49,7 +49,7 @@ section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3{color:v
 
 /* ---------- Hero ---------- */
 .hero{
-  position:relative; overflow:hidden; border-radius:30px; padding:2.4rem 2.6rem; color:#fff;
+  position:relative; z-index:0; overflow:hidden; border-radius:30px; padding:2.4rem 2.6rem; color:#fff;
   background:linear-gradient(135deg,#4F68FF 0%,#3A4FE0 100%);
   box-shadow:0 24px 60px rgba(25,35,120,.35);
 }
@@ -68,6 +68,7 @@ section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3{color:v
 
 /* ---------- Input card ---------- */
 .st-key-input_card{
+  position:relative; z-index:1;
   background:#fff; border-radius:28px; padding:1.9rem 2rem 2rem; margin-top:1.4rem;
   box-shadow:0 24px 60px rgba(25,35,120,.22);
 }
@@ -75,7 +76,7 @@ section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3{color:v
 .card-title .dot{width:10px; height:10px; border-radius:50%; background:linear-gradient(135deg,var(--cyan),var(--primary));}
 .card-sub{color:var(--muted); font-size:.85rem; margin:.2rem 0 .4rem;}
 
-/* ---------- Widgets ---------- */
+/* ---------- Inputs ---------- */
 [data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] label{
   color:#5A6485 !important; font-weight:500; font-size:.85rem;}
 div[data-baseweb="input"], div[data-baseweb="base-input"]{background:var(--soft) !important; border-radius:14px !important;}
@@ -83,9 +84,17 @@ div[data-baseweb="input"]{border:1px solid var(--line) !important;}
 div[data-baseweb="input"]:focus-within{border-color:var(--primary) !important; box-shadow:0 0 0 3px rgba(74,99,245,.15);}
 div[data-baseweb="input"] input{color:var(--ink) !important; -webkit-text-fill-color:var(--ink) !important; font-weight:500;}
 [data-testid="stNumberInput"] button{background:transparent !important; color:var(--primary) !important; border:none !important;}
-/* turns Streamlit's default red slider accent into the theme blue */
-[data-testid="stSlider"] [data-baseweb="slider"]{filter:hue-rotate(240deg);}
-[data-testid="stTickBarMin"], [data-testid="stTickBarMax"]{color:#8B8B8B !important;}
+
+/* ---------- Sliders ----------
+   Streamlit's default slider accent is red (#FF4B4B). Hue-rotating the whole slider widget
+   turns it into the theme blue; the label is rotated back so its colour stays unchanged. */
+[data-testid="stSlider"]{filter:hue-rotate(240deg); padding-bottom:1.5rem;}
+[data-testid="stSlider"] [data-testid="stWidgetLabel"]{filter:hue-rotate(-240deg);}
+[data-testid="stSlider"] [role="slider"]{
+  box-shadow:0 0 0 5px rgba(255,75,75,.18), 0 4px 10px rgba(255,75,75,.35) !important;}
+[data-testid*="TickBar"], [data-testid*="TickBar"] *{
+  color:#8E8E93 !important; opacity:1 !important; font-size:.72rem !important;}
+[data-testid*="ThumbValue"]{font-weight:600 !important; font-size:.82rem !important;}
 
 /* ---------- Live snapshot tiles ---------- */
 .soft-divider{height:1px; background:var(--line); margin:1.4rem 0 1rem;}
@@ -111,6 +120,7 @@ div[data-baseweb="input"] input{color:var(--ink) !important; -webkit-text-fill-c
 
 /* ---------- Result card ---------- */
 .result-card{
+  position:relative; z-index:1;
   display:flex; align-items:center; gap:2.2rem; background:#fff; border-radius:28px;
   padding:2rem 2.4rem; margin-top:1.4rem; box-shadow:0 24px 60px rgba(25,35,120,.25);
 }
@@ -129,7 +139,7 @@ div[data-baseweb="input"] input{color:var(--ink) !important; -webkit-text-fill-c
 @media (max-width:700px){.result-card{flex-direction:column; text-align:center;}}
 
 /* ---------- Alerts / footer ---------- */
-.alert{display:flex; gap:.8rem; align-items:flex-start; background:#fff; border-left:6px solid #FFB020;
+.alert{position:relative; z-index:1; display:flex; gap:.8rem; align-items:flex-start; background:#fff; border-left:6px solid #FFB020;
   border-radius:18px; padding:1.1rem 1.4rem; margin-top:1.4rem; color:var(--ink); font-size:.92rem;
   line-height:1.55; box-shadow:0 16px 40px rgba(25,35,120,.2);}
 .alert code{background:var(--soft); color:var(--primary); padding:.1rem .45rem; border-radius:8px; font-size:.85rem;}
@@ -171,14 +181,14 @@ with st.container(key="input_card"):
 
     with col1:
         pregnancies = st.number_input("Pregnancies", min_value=0, max_value=17, value=2, step=1)
-        glucose = st.slider("Glucose (mg/dL)", min_value=0.0, max_value=200.0, value=120.0, step=1.0)
-        blood_pressure = st.slider("Blood Pressure (mm Hg)", min_value=0.0, max_value=130.0, value=70.0, step=1.0)
-        skin_thickness = st.slider("Skin Thickness (mm)", min_value=0.0, max_value=100.0, value=20.0, step=1.0)
+        glucose = st.slider("Glucose (mg/dL)", min_value=0.0, max_value=200.0, value=120.0, step=1.0, format="%.0f")
+        blood_pressure = st.slider("Blood Pressure (mm Hg)", min_value=0.0, max_value=130.0, value=70.0, step=1.0, format="%.0f")
+        skin_thickness = st.slider("Skin Thickness (mm)", min_value=0.0, max_value=100.0, value=20.0, step=1.0, format="%.0f")
 
     with col2:
-        insulin = st.slider("Insulin (µU/mL)", min_value=0.0, max_value=850.0, value=80.0, step=1.0)
-        bmi = st.slider("BMI (kg/m²)", min_value=0.0, max_value=70.0, value=25.0, step=0.1)
         dpf = st.number_input("Diabetes Pedigree Function", min_value=0.0, max_value=2.5, value=0.5, step=0.01)
+        insulin = st.slider("Insulin (µU/mL)", min_value=0.0, max_value=850.0, value=80.0, step=1.0, format="%.0f")
+        bmi = st.slider("BMI (kg/m²)", min_value=0.0, max_value=70.0, value=25.0, step=0.1, format="%.1f")
         age = st.slider("Age (years)", min_value=18, max_value=90, value=30, step=1)
 
     html('<div class="soft-divider"></div>')
